@@ -1,0 +1,41 @@
+{% extends 'queue_site/base.html' %}
+{% load queue_filters %}
+{% block content %}
+    <h2 class="mb-3">Доступные предметы</h2>
+    {% if subjects %}
+        <div class="row">
+            {% for subject in subjects %}
+                <div class="col-md-4 mb-3">
+                    <form method="post" action="{% url 'join_queue' subject.id %}" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary w-100">{{ subject.name }}</button>
+                    </form>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="text-muted">Пока нет доступных предметов.</p>
+    {% endif %}
+
+    <h2 class="mt-4 mb-3">Ваши текущие сессии</h2>
+    {% if user_queues %}
+        <div class="row">
+            {% for entry in user_queues %}
+                {% with session=entry.lab_session %}
+                    <div class="col-md-4 mb-3">
+                        <a href="{% url 'queue_detail' session.id %}" class="btn w-100
+                            {% if session.status == 'pending' %}btn-secondary
+                            {% elif entry.status == 'completed' %}btn-danger
+                            {% elif entry.status == 'submitting' %}btn-warning
+                            {% else %}btn-warning{% endif %}">
+                            {{ session.subject.name }} - {{ session.start_time|date:"H:i" }}<br>
+                            Место: {{ entry.get_position }} (≈ {{ entry.get_wait_time }} мин)
+                        </a>
+                    </div>
+                {% endwith %}
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="text-muted">Вы не в каких очередях.</p>
+    {% endif %}
+{% endblock %}

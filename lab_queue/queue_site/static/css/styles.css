@@ -1,0 +1,49 @@
+.session {
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+.session h3 {
+    margin-top: 0;
+}
+.session ul {
+    list-style-type: none;
+    padding-left: 0;
+}
+.session li {
+    padding: 5px 0;
+}
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f4f4f4;
+}
+header { text-align: center; margin-bottom: 20px; }
+main { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+button, .subject-btn, .session-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    margin: 5px;
+}
+.subject-btn { background-color: #007bff; color: white; }
+.subject-btn:hover { background-color: #0056b3; }
+.session-btn.grey { background-color: #ccc; color: black; }
+.session-btn.yellow { background-color: #ffeb3b; color: black; }
+.session-btn.red { background-color: #f44336; color: white; }
+.queue-list { list-style-type: none; padding: 0; }
+.queue-list li { padding: 10px; margin: 5px 0; border-radius: 5px; }
+.queue-list li.grey { background-color: #ddd; }
+.queue-list li.green { background-color: #4caf50; color: white; }
+.queue-list li.yellow { background-color: #ffeb3b; }
+.message { padding: 10px; margin: 10px 0; border-radius: 5px; }
+.message.success { background-color: #d4edda; color: #155724; }
+.message.error { background-color: #f8d7da; color: #721c24; }
+button:hover {
+    background-color: #0056b3;
+}

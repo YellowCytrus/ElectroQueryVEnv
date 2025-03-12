@@ -1,0 +1,52 @@
+{% extends 'queue_site/base.html' %}
+{% block content %}
+    <h2 class="mb-3">Очередь для {{ session.subject.name }}</h2>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title">Статус</h5>
+            <p class="card-text">
+                <span class="badge {% if is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                    {% if is_active %}Идёт{% else %}Не идёт{% endif %}
+                </span>
+
+                {% if next_event_date %}
+                    <span class="ms-3">
+                        Следующее занятие: {{ next_event_date|date:"d.m.Y" }} в {{ next_event_date|time:"H:i" }}
+                    </span>
+                {% endif %}
+            </p>
+
+            {% if schedule %}
+                <p class="card-text">
+                    <strong>Начало:</strong> {{ schedule.start_time|time:"H:i" }}
+                    <strong>Длительность:</strong> {{ schedule.duration_minutes }} мин.
+                </p>
+            {% endif %}
+        </div>
+    </div>
+    <ul class="list-group mb-3">
+        {% for entry in queue_entries %}
+            <li class="list-group-item
+                {% if entry.status == 'completed' %}list-group-item-secondary
+                {% elif entry.status == 'submitting' %}list-group-item-success
+                {% else %}list-group-item-warning{% endif %}">
+                {{ entry.student.username }} -
+                {% if entry.status == 'waiting' %}Ожидает
+                {% elif entry.status == 'submitting' %}Сдаёт
+                {% else %}Завершил{% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+    <div class="d-flex justify-content-between">
+        <a href="{% url 'home' %}" class="btn btn-outline-primary">Назад</a>
+        {% if user_entry and user_entry.status != 'completed' %}
+            <form method="post" action="{% url 'queue_detail' session.id %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">
+                    {% if is_first and is_active %}Я сдал лабу{% else %}Выйти из очереди{% endif %}
+                </button>
+            </form>
+        {% endif %}
+    </div>
+{% endblock %}
