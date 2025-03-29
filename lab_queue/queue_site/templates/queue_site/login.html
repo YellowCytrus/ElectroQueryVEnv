@@ -1,9 +1,57 @@
 {% extends 'queue_site/base.html' %}
 {% block content %}
-    <h2>Вход</h2>
-    <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Войти</button>
-    </form>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6 col-lg-4">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-4">
+                        <h2 class="text-center mb-4">Вход в систему</h2>
+                        {% if messages %}
+                            <div class="alert alert-danger" role="alert">
+                                {% for message in messages %}
+                                    {{ message }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <form method="post">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="id_username" class="form-label">Имя пользователя:</label>
+                                <input type="text" name="username" id="id_username" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="id_password" class="form-label">Пароль:</label>
+                                <input type="password" name="password" id="id_password" class="form-control" required>
+                                <div class="form-check mt-2">
+                                    <input type="checkbox" class="form-check-input" id="show_password">
+                                    <label class="form-check-label" for="show_password">Показать пароль</label>
+                                </div>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg">Войти</button>
+                            </div>
+                        </form>
+                        <div class="text-center mt-3">
+                            <a href="{% url 'password_reset' %}" class="text-muted small">Забыли пароль?</a>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-center mt-3 text-muted">
+                    <small>© ПЛАКИ-ПЛАКИ Production</small>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('show_password').addEventListener('change', function() {
+            const passwordField = document.getElementById('id_password');
+            if (this.checked) {
+                passwordField.type = 'text';
+            } else {
+                passwordField.type = 'password';
+            }
+        });
+    </script>
 {% endblock %}
+

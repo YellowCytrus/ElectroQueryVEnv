@@ -1,12 +1,34 @@
+# queue_site/models.py
+
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
+import uuid
+
 
 class User(AbstractUser):
-    telegram_id = models.CharField(max_length=255, blank=True, null=True)
+    telegram_username = models.CharField(
+        max_length=32,
+        blank=True,
+        null=True,
+        unique=True,
+        help_text="Ваш Telegram username (например, @username). Используется для отправки уведомлений."
+    )
 
     def __str__(self):
         return self.username
+
+
+class RegistrationToken(models.Model):
+    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    telegram_username = models.CharField(max_length=32, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    def __str__(self):
+        return str(self.token)
+
 
 class Subject(models.Model):
     name = models.CharField(max_length=255)

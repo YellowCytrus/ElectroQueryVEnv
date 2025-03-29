@@ -1,8 +1,12 @@
+import asyncio
+from django.urls import reverse, reverse_lazy
+from django.contrib.auth.views import PasswordResetView
+from telegram import Bot
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from datetime import datetime, timedelta
-
-from django.http import Http404
+from django.http import HttpResponseRedirect, JsonResponse
+from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import render, redirect
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm, logger
@@ -10,8 +14,8 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-
-from .forms import CustomUserCreationForm
+from django.views.generic import CreateView, View  # Добавляем View
+from .forms import CustomUserCreationForm, CustomPasswordResetForm
 from .models import User, Subject, LabSession, QueueEntry, Schedule
 from .serializers import UserSerializer, SubjectSerializer, LabSessionSerializer, QueueEntrySerializer
 from django.utils import timezone
@@ -23,7 +27,10 @@ def register_view(request):
         if form.is_valid():
             user = form.save()
             login(request, user)
+            messages.success(request, 'Регистрация прошла успешно! Вы вошли в систему.')
             return redirect('home')
+        else:
+            messages.error(request, 'Ошибка при регистрации. Проверьте введенные данные.')
     else:
         form = CustomUserCreationForm()
     return render(request, 'queue_site/register.html', {'form': form})
@@ -31,14 +38,15 @@ def register_view(request):
 
 def login_view(request):
     if request.method == 'POST':
-        form = AuthenticationForm(data=request.POST)
-        if form.is_valid():
-            user = form.get_user()
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
             login(request, user)
             return redirect('home')
-    else:
-        form = AuthenticationForm()
-    return render(request, 'queue_site/login.html', {'form': form})
+        else:
+            messages.error(request, 'Неверный логин или пароль.')
+    return render(request, 'queue_site/login.html')
 
 
 def logout_view(request):
@@ -269,6 +277,88 @@ def create_sessions():
             print(f"Создана сессия: Start {timezone.localtime(new_session.start_time)}, End {timezone.localtime(new_session.end_time)}")
 
 
+from .bot import chat_ids
+
+class CustomPasswordResetView(PasswordResetView):
+    template_name = 'queue_site/password_reset_form.html'
+    form_class = CustomPasswordResetForm
+    success_url = reverse_lazy('password_reset_done')
+
+    def post(self, request, *args, **kwargs):
+        print("POST request received")
+        form = self.get_form()
+        if form.is_valid():
+            print("Form is valid")
+            return self.form_valid(form)
+        else:
+            print("Form is invalid:", form.errors)
+            return self.form_invalid(form)
+
+    async def send_telegram_message(self, telegram_id, message):
+        bot_token = '7951386321:AAHxpTDG6yhTRl9ap2uazpy7vX_-9mv1HPw'
+        bot = Bot(token=bot_token)
+        try:
+            await bot.send_message(chat_id=telegram_id, text=message)
+            return True
+        except Exception as e:
+            return str(e)
+
+    def form_valid(self, form):
+        print("Processing form_valid")
+        telegram_username = form.cleaned_data['username']
+        print(f"Telegram Username: {telegram_username}")
+
+        try:
+            user = User.objects.get(telegram_username=telegram_username)
+            print(f"User found: {user}")
+        except User.DoesNotExist:
+            messages.error(self.request, "Пользователь с таким Telegram username не найден.")
+            return HttpResponseRedirect(self.get_success_url())
+
+        if not user.telegram_username:
+            messages.error(self.request,
+                           "У этого пользователя не указан Telegram username. Обратитесь к администратору.")
+            return HttpResponseRedirect(self.get_success_url())
+
+        telegram_id = chat_ids.get(user.telegram_username.lstrip('@'))
+        print(f"Looking for telegram_id for {user.telegram_username.lstrip('@')}, found: {telegram_id}")
+        if not telegram_id:
+            messages.error(self.request, "Вы не активировали бота. Пожалуйста, отправьте /start боту в Telegram.")
+            return HttpResponseRedirect(self.get_success_url())
+
+        form.save(
+            use_https=self.request.is_secure(),
+            token_generator=self.token_generator,
+            request=self.request
+        )
+
+        uid = form.uid
+        token = form.token
+
+        domain = self.request.get_host()
+        protocol = 'https' if self.request.is_secure() else 'http'
+        reset_url = f"{protocol}://{domain}{reverse('password_reset_confirm', kwargs={'uidb64': uid, 'token': token})}"
+        print(f"Reset URL: {reset_url}")
+
+        message = (
+            "Здравствуйте,\n\n"
+            "Вы запросили сброс пароля для вашей учетной записи в ПЛАКИ-ПЛАКИ.\n\n"
+            f"Пожалуйста, перейдите по следующей ссылке, чтобы сбросить пароль:\n{reset_url}\n\n"
+            "Если вы не запрашивали сброс пароля, просто проигнорируйте это сообщение.\n\n"
+            "С уважением,\nКоманда ПЛАКИ-ПЛАКИ"
+        )
+
+        # Вызываем асинхронную функцию в синхронном контексте
+        send_error = asyncio.run(self.send_telegram_message(telegram_id, message))
+
+        if send_error is not True:
+            messages.error(self.request, f"Ошибка при отправке сообщения в Telegram: {send_error}")
+            return HttpResponseRedirect(self.get_success_url())
+
+        messages.success(self.request, "Сообщение с ссылкой для сброса пароля отправлено в Telegram.")
+        return HttpResponseRedirect(self.get_success_url())
+
+
 class CompleteSubmissionView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -313,13 +403,48 @@ class CompleteSubmissionView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class RegisterView(APIView):
-    def post(self, request):
-        serializer = UserSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# queue_site/views.py
+
+from django.contrib.auth.views import PasswordResetView
+from django.urls import reverse
+from django.contrib import messages
+from django.http import HttpResponseRedirect
+from django.views.generic import CreateView
+from telegram import Bot
+import asyncio
+from .models import User, RegistrationToken
+from .forms import CustomUserCreationForm, CustomPasswordResetForm
+
+
+class RegisterView(CreateView):
+    form_class = CustomUserCreationForm
+    template_name = 'queue_site/register.html'
+    success_url = reverse_lazy('home')  # Укажи правильный URL для перенаправления
+
+    def form_valid(self, form):
+        # Сохраняем пользователя и устанавливаем self.object
+        self.object = form.save()
+        # Обновляем RegistrationToken
+        registration_token = form.registration_token
+        registration_token.is_used = True
+        registration_token.save()
+        # Вызываем родительский form_valid, чтобы он обработал перенаправление
+        return super().form_valid(form)
+
+
+class CheckTelegramUsernameView(View):
+    def get(self, request, token):
+        try:
+            registration_token = RegistrationToken.objects.get(token=token, is_used=False)
+            print(f"Found token: {registration_token}, telegram_username: {registration_token.telegram_username}")
+            return JsonResponse({
+                'telegram_username': registration_token.telegram_username
+            })
+        except RegistrationToken.DoesNotExist:
+            print(f"Token {token} not found")
+            return JsonResponse({
+                'telegram_username': None
+            }, status=404)
 
 
 class SubjectListView(APIView):

@@ -39,7 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
-    'queue_site',
+    'queue_site.apps.QueueSiteConfig',
 ]
 
 REST_FRAMEWORK = {
@@ -151,3 +151,6 @@ LOGGING = {
         'level': 'INFO',
     },
 }
+
+# Email settings for password reset (using console backend for testing)
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

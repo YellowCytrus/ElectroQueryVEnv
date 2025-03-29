@@ -1,9 +1,155 @@
 {% extends 'queue_site/base.html' %}
+
+{% block title %}Регистрация - Электронная очередь{% endblock %}
+
 {% block content %}
-    <h2>Регистрация</h2>
-    <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Зарегистрироваться</button>
-    </form>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6 col-lg-4">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-4">
+                        <h2 class="text-center mb-4">Регистрация</h2>
+                        {% if messages %}
+                            <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %}" role="alert">
+                                {% for message in messages %}
+                                    {{ message }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <form method="post" id="register-form">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="id_username" class="form-label">Имя пользователя:</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-person-fill"></i>
+                                    </span>
+                                    <input type="text" name="username" id="id_username" class="form-control" placeholder="Введите имя пользователя" required>
+                                </div>
+                                {% if form.username.errors %}
+                                    <div class="text-danger small">{{ form.username.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="mb-3">
+                                <label for="id_telegram_username" class="form-label">Telegram username:</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-telegram"></i>
+                                    </span>
+                                    <input type="text" name="telegram_username" id="id_telegram_username" class="form-control" placeholder="Активируйте tg бота" readonly>
+                                </div>
+                                <small class="form-text text-muted">Нажмите кнопку ниже, чтобы активировать бота в Telegram.</small>
+                                <a href="https://t.me/plaki_plaki_prod_bot?start={{ form.registration_token.token }}" target="_blank" class="btn btn-outline-primary btn-sm mt-2 d-block text-center" id="activate-bot-btn">
+                                    <i class="bi bi-robot me-1"></i> Активировать бота
+                                </a>
+                                {% if form.telegram_username.errors %}
+                                    <div class="text-danger small">{{ form.telegram_username.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="mb-3">
+                                <label for="id_password1" class="form-label">Пароль:</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-lock-fill"></i>
+                                    </span>
+                                    <input type="password" name="password1" id="id_password1" class="form-control" placeholder="Введите пароль" required>
+                                </div>
+                                {% if form.password1.errors %}
+                                    <div class="text-danger small">{{ form.password1.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="mb-3">
+                                <label for="id_password2" class="form-label">Подтвердите пароль:</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-lock-fill"></i>
+                                    </span>
+                                    <input type="password" name="password2" id="id_password2" class="form-control" placeholder="Подтвердите пароль" required>
+                                </div>
+                                {% if form.password2.errors %}
+                                    <div class="text-danger small">{{ form.password2.errors }}</div>
+                                {% endif %}
+                                <div class="form-check mt-2">
+                                    <input type="checkbox" class="form-check-input" id="show_password">
+                                    <label class="form-check-label" for="show_password">Показать пароли</label>
+                                </div>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg" id="register-btn" disabled>Зарегистрироваться</button>
+                            </div>
+                        </form>
+                        <div class="text-center mt-3">
+                            <a href="{% url 'login' %}" class="text-muted small">Уже есть аккаунт? Войти</a>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-center mt-3 text-muted">
+                    <small>© ПЛАКИ-ПЛАКИ Production</small>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Подключаем Bootstrap Icons для иконок -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- JavaScript для переключения видимости паролей -->
+    <script>
+        document.getElementById('show_password').addEventListener('change', function() {
+            const passwordField1 = document.getElementById('id_password1');
+            const passwordField2 = document.getElementById('id_password2');
+            if (this.checked) {
+                passwordField1.type = 'text';
+                passwordField2.type = 'text';
+            } else {
+                passwordField1.type = 'password';
+                passwordField2.type = 'password';
+            }
+        });
+
+        // Получаем элементы формы
+        const registerBtn = document.getElementById('register-btn');
+        const telegramUsernameInput = document.getElementById('id_telegram_username');
+        const token = "{{ form.registration_token.token }}"; // Токен из формы
+
+        // Функция для проверки telegram_username
+        function checkTelegramUsername() {
+            fetch(`/check-telegram-username/${token}/`, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest' // Указываем, что это AJAX-запрос
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.telegram_username) {
+                    // Если telegram_username получен, заполняем поле и активируем кнопку
+                    telegramUsernameInput.value = data.telegram_username;
+                    registerBtn.disabled = false;
+                    clearInterval(checkInterval); // Останавливаем проверку
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка при проверке telegram_username:', error);
+            });
+        }
+
+        // Запускаем проверку каждые 1.5 секунды
+        const checkInterval = setInterval(checkTelegramUsername, 1500);
+
+        // Останавливаем проверку, если пользователь отправил форму
+        document.getElementById('register-form').addEventListener('submit', () => {
+            clearInterval(checkInterval);
+        });
+    </script>
+
+    <!-- Добавим немного стилей -->
+    <style>
+        .input-group .form-control {
+            border-left: 0;
+        }
+        .input-group-text {
+            background-color: #f8f9fa;
+        }
+    </style>
 {% endblock %}
