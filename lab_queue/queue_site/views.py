@@ -7,16 +7,16 @@ from django.contrib.auth.decorators import login_required
 from datetime import datetime, timedelta
 from django.http import HttpResponseRedirect, JsonResponse
 from django.http import Http404, HttpResponseRedirect
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm, logger
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from django.views.generic import CreateView, View  # Добавляем View
+from django.views.generic import CreateView, View
 from .forms import CustomUserCreationForm, CustomPasswordResetForm
-from .models import User, Subject, LabSession, QueueEntry, Schedule
+from .models import User, Subject, LabSession, QueueEntry, Schedule, UserSubject, RegistrationToken
 from .serializers import UserSerializer, SubjectSerializer, LabSessionSerializer, QueueEntrySerializer
 from django.utils import timezone
 
@@ -56,9 +56,23 @@ def logout_view(request):
 
 def home_view(request):
     create_sessions()
-    subjects = Subject.objects.all()
-    sessions = LabSession.objects.filter(status__in=['pending', 'active'])
-    queue_entries = QueueEntry.objects.filter(lab_session__in=sessions, student=request.user) if request.user.is_authenticated else []
+    if request.user.is_authenticated:
+        # Получаем предметы пользователя через UserSubject
+        subjects = Subject.objects.filter(users__user=request.user)
+        # Получаем сессии, связанные с предметами пользователя
+        sessions = LabSession.objects.filter(
+            subject__in=subjects,
+            status__in=['pending', 'active']
+        )
+        queue_entries = QueueEntry.objects.filter(
+            lab_session__in=sessions,
+            student=request.user
+        ).select_related('lab_session__subject')
+    else:
+        subjects = []
+        sessions = []
+        queue_entries = []
+
     return render(request, 'queue_site/home.html', {
         'subjects': subjects,
         'sessions': sessions,
@@ -69,13 +83,24 @@ def home_view(request):
 @login_required
 def join_queue(request, subject_id):
     if request.method == 'POST':
-        subject = Subject.objects.get(id=subject_id)
-        session = LabSession.objects.filter(subject=subject, start_time__date=timezone.now().date()).first()
+        # Проверяем, что предмет привязан к пользователю
+        subject = get_object_or_404(Subject, id=subject_id)
+        if not UserSubject.objects.filter(user=request.user, subject=subject).exists():
+            messages.error(request, "Этот предмет не привязан к вашему аккаунту.")
+            return redirect('home')
+
+        # Проверяем, есть ли активная сессия для этого предмета на сегодня
+        session = LabSession.objects.filter(
+            subject=subject,
+            start_time__date=timezone.now().date()
+        ).first()
 
         if not session:
+            # Если сессии нет, создаём новую на основе расписания
             schedule = Schedule.objects.filter(subject=subject).first()
             if schedule:
                 start_dt = datetime.combine(timezone.now().date(), schedule.start_time)
+                start_dt = timezone.make_aware(start_dt)
                 end_dt = start_dt + timedelta(minutes=schedule.duration_minutes)
                 session = LabSession.objects.create(
                     subject=subject,
@@ -87,11 +112,15 @@ def join_queue(request, subject_id):
                 messages.error(request, "Для этого предмета нет расписания.")
                 return redirect('home')
 
-        # Проверяем, не в очереди ли уже пользователь
-        if QueueEntry.objects.filter(lab_session=session, student=request.user,
-                                     status__in=['waiting', 'submitting']).exists():
+        # Проверяем, не находится ли пользователь уже в очереди
+        if QueueEntry.objects.filter(
+                lab_session=session,
+                student=request.user,
+                status__in=['waiting', 'submitting']
+        ).exists():
             messages.error(request, "Вы уже в очереди на этот предмет!")
         else:
+            # Создаём запись в очереди
             entry = QueueEntry.objects.create(lab_session=session, student=request.user)
             if not session.current_submitter and session.status == 'active':
                 entry.status = 'submitting'
@@ -104,10 +133,36 @@ def join_queue(request, subject_id):
     return redirect('home')
 
 
-from django.utils import timezone
-from datetime import datetime, timedelta
-from .models import Schedule
+@login_required
+def add_subject(request):
+    if request.method == 'POST':
+        # Проверяем, хочет ли пользователь добавить или удалить предметы
+        if 'add_subjects' in request.POST:
+            # Добавление новых предметов
+            subject_ids = request.POST.getlist('subjects')
+            for subject_id in subject_ids:
+                subject = Subject.objects.get(id=subject_id)
+                UserSubject.objects.get_or_create(user=request.user, subject=subject)
+            messages.success(request, "Предметы успешно добавлены!")
+        elif 'remove_subject' in request.POST:
+            # Удаление предмета
+            subject_id = request.POST.get('subject_id')
+            subject = Subject.objects.get(id=subject_id)
+            UserSubject.objects.filter(user=request.user, subject=subject).delete()
+            messages.success(request, f"Предмет '{subject.name}' удалён из вашего списка.")
 
+        return redirect('add_subject')
+
+    # Получаем текущие предметы пользователя
+    current_subjects = Subject.objects.filter(users__user=request.user)
+    # Получаем предметы, которые ещё не привязаны к пользователю
+    user_subjects = UserSubject.objects.filter(user=request.user).values_list('subject_id', flat=True)
+    available_subjects = Subject.objects.exclude(id__in=user_subjects)
+    context = {
+        'current_subjects': current_subjects,
+        'available_subjects': available_subjects,
+    }
+    return render(request, 'queue_site/add_subject.html', context)
 
 def check_current_events(schedule_id):
     """Проверяет активность расписания и рассчитывает следующую дату"""
@@ -120,19 +175,15 @@ def check_current_events(schedule_id):
     now = timezone.localtime(timezone.now())
     print(f"Сейчас: {now}")
 
-    # Определяем чётность недели
     current_week_parity = 'odd' if now.isocalendar()[1] % 2 == 1 else 'even'
     print(f"Текущая неделя: {current_week_parity}")
 
-    # Рассчитываем следующий день занятия (всегда на будущее)
     days_ahead = (schedule.day_of_week - now.isoweekday() + 7) % 7
     next_date = now + timedelta(days=days_ahead)
 
-    # Если сегодня день занятия, но время уже прошло — переносим на следующую неделю
     if days_ahead == 0 and now.time() > schedule.start_time:
         next_date += timedelta(weeks=1)
 
-    # Проверка чётности недели
     if schedule.week_parity != 'all':
         next_week_parity = 'odd' if next_date.isocalendar()[1] % 2 == 1 else 'even'
         if schedule.week_parity != next_week_parity:
@@ -143,7 +194,6 @@ def check_current_events(schedule_id):
     )
     print(f"Следующее событие: {next_event}")
 
-    # Определяем, идёт ли сейчас занятие
     start_datetime = timezone.make_aware(
         datetime.combine(now.date(), schedule.start_time)
     )
@@ -153,16 +203,19 @@ def check_current_events(schedule_id):
     return is_active, next_event
 
 
-
 @login_required
 def queue_detail(request, session_id):
     try:
         session = LabSession.objects.select_related('subject').get(id=session_id)
+        # Проверяем, что сессия связана с предметом пользователя
+        if not UserSubject.objects.filter(user=request.user, subject=session.subject).exists():
+            messages.error(request, "У вас нет доступа к этой сессии.")
+            return redirect('home')
+
         queue_entries = QueueEntry.objects.filter(
             lab_session=session
         ).select_related('student').order_by('join_time')
 
-        # Получаем расписание для предмета
         schedule = Schedule.objects.filter(
             subject=session.subject
         ).first()
@@ -179,7 +232,7 @@ def queue_detail(request, session_id):
         if request.method == 'POST' and user_entry:
             user_entry.delete()
             messages.success(request, "Вы вышли из очереди!")
-            # Обновляем current_submitter, если пользователь был первым
+
             if is_first and session.status == 'active':
                 next_entry = queue_entries.filter(status='waiting').order_by('join_time').first()
                 if next_entry:
@@ -199,17 +252,15 @@ def queue_detail(request, session_id):
             'is_first': is_first,
             'is_active': is_active,
             'next_event_date': next_event_date,
-            'schedule': schedule,  # <-- добавляем schedule
+            'schedule': schedule,
             'now': timezone.now()
         })
-
 
     except LabSession.DoesNotExist:
         raise Http404("Сессия не найдена")
     except Exception as e:
         logger.error(f"Ошибка в queue_detail: {str(e)}")
         raise
-
 
 
 @login_required
@@ -239,7 +290,7 @@ def complete_submission(request, entry_id):
 
 def create_sessions():
     now = timezone.now()
-    current_day = now.weekday()
+    current_day = now.weekday() + 1  # weekday() возвращает 0-6, а у нас 1-7
     week_number = now.isocalendar()[1]
     is_even_week = week_number % 2 == 0
 
@@ -248,20 +299,19 @@ def create_sessions():
     for session in completed_sessions:
         session.delete()
 
-    # Создаём новые сессии
+    # Создаём новые сессии на основе расписания
     schedules = Schedule.objects.filter(day_of_week=current_day)
     for schedule in schedules:
         if (schedule.week_parity == 'all' or
-            (schedule.week_parity == 'even' and is_even_week) or
-            (schedule.week_parity == 'odd' and not is_even_week)):
-            # Указываем время в локальном поясе
+                (schedule.week_parity == 'even' and is_even_week) or
+                (schedule.week_parity == 'odd' and not is_even_week)):
             local_start_dt = timezone.make_aware(
                 datetime.combine(now.date(), schedule.start_time),
                 timezone.get_current_timezone()
             )
             local_end_dt = local_start_dt + timedelta(minutes=schedule.duration_minutes)
 
-            # Удаляем старую сессию
+            # Удаляем старую сессию на сегодня, если она есть
             LabSession.objects.filter(
                 subject=schedule.subject,
                 start_time__date=now.date()
@@ -274,10 +324,12 @@ def create_sessions():
                 end_time=local_end_dt,
                 status='active' if local_start_dt <= now <= local_end_dt else 'pending'
             )
-            print(f"Создана сессия: Start {timezone.localtime(new_session.start_time)}, End {timezone.localtime(new_session.end_time)}")
+            print(
+                f"Создана сессия: Start {timezone.localtime(new_session.start_time)}, End {timezone.localtime(new_session.end_time)}")
 
 
 from .bot import chat_ids
+
 
 class CustomPasswordResetView(PasswordResetView):
     template_name = 'queue_site/password_reset_form.html'
@@ -348,7 +400,6 @@ class CustomPasswordResetView(PasswordResetView):
             "С уважением,\nКоманда ПЛАКИ-ПЛАКИ"
         )
 
-        # Вызываем асинхронную функцию в синхронном контексте
         send_error = asyncio.run(self.send_telegram_message(telegram_id, message))
 
         if send_error is not True:
@@ -365,19 +416,16 @@ class CompleteSubmissionView(APIView):
     def post(self, request):
         try:
             queue_entry_id = request.data.get('queue_site/queue_entry_id')
-            # Проверяем, что запись принадлежит текущему студенту
+
             queue_entry = QueueEntry.objects.get(id=queue_entry_id, student=request.user)
 
-            # Убеждаемся, что студент сейчас сдаёт
             if queue_entry.status != 'submitting':
                 return Response({"error": "Вы сейчас не сдаёте."}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Завершаем защиту
             queue_entry.status = 'completed'
             queue_entry.end_time = timezone.now()
             queue_entry.save()
 
-            # Продвигаем очередь
             session = queue_entry.lab_session
             next_entry = QueueEntry.objects.filter(
                 lab_session=session, status='waiting'
@@ -390,7 +438,7 @@ class CompleteSubmissionView(APIView):
                 session.current_submitter = next_entry
             else:
                 session.current_submitter = None
-                # Если больше нет ожидающих, завершаем сессию
+
                 if not QueueEntry.objects.filter(lab_session=session, status__in=['waiting', 'submitting']).exists():
                     session.status = 'completed'
             session.save()
@@ -403,32 +451,18 @@ class CompleteSubmissionView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# queue_site/views.py
-
-from django.contrib.auth.views import PasswordResetView
-from django.urls import reverse
-from django.contrib import messages
-from django.http import HttpResponseRedirect
-from django.views.generic import CreateView
-from telegram import Bot
-import asyncio
-from .models import User, RegistrationToken
-from .forms import CustomUserCreationForm, CustomPasswordResetForm
-
-
 class RegisterView(CreateView):
     form_class = CustomUserCreationForm
     template_name = 'queue_site/register.html'
-    success_url = reverse_lazy('home')  # Укажи правильный URL для перенаправления
+    success_url = reverse_lazy('home')
 
     def form_valid(self, form):
-        # Сохраняем пользователя и устанавливаем self.object
         self.object = form.save()
-        # Обновляем RegistrationToken
         registration_token = form.registration_token
         registration_token.is_used = True
         registration_token.save()
-        # Вызываем родительский form_valid, чтобы он обработал перенаправление
+        login(self.request, self.object)  # Автоматический вход после регистрации
+        messages.success(self.request, 'Регистрация прошла успешно! Вы вошли в систему.')
         return super().form_valid(form)
 
 
@@ -449,21 +483,31 @@ class CheckTelegramUsernameView(View):
 
 class SubjectListView(APIView):
     def get(self, request):
-        subjects = Subject.objects.all()
+        if request.user.is_authenticated:
+            # Возвращаем только предметы, привязанные к пользователю
+            subjects = Subject.objects.filter(users__user=request.user)
+        else:
+            subjects = Subject.objects.none()  # Для неаутентифицированных пользователей возвращаем пустой список
         serializer = SubjectSerializer(subjects, many=True)
         return Response(serializer.data)
 
 
 class JoinQueueView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         lab_session_id = request.data.get('lab_session_id')
-        student_id = request.data.get('student_id')  # Предполагаем, что студент авторизован
+        student_id = request.data.get('student_id')
         try:
             lab_session = LabSession.objects.get(id=lab_session_id)
             student = User.objects.get(id=student_id)
+
+            # Проверяем, что предмет сессии привязан к пользователю
+            if not UserSubject.objects.filter(user=student, subject=lab_session.subject).exists():
+                return Response({"error": "Этот предмет не привязан к пользователю."}, status=status.HTTP_403_FORBIDDEN)
+
             queue_entry = QueueEntry.objects.create(lab_session=lab_session, student=student)
             serializer = QueueEntrySerializer(queue_entry)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except (LabSession.DoesNotExist, User.DoesNotExist):
             return Response({"error": "Session or student not found"}, status=status.HTTP_404_NOT_FOUND)
-

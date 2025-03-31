@@ -1,4 +1,4 @@
-# queue_site/bot.py
+
 
 import json
 import os
@@ -8,7 +8,7 @@ import asyncio
 from .models import RegistrationToken
 from asgiref.sync import sync_to_async
 
-# Укажем абсолютный путь
+
 CHAT_IDS_FILE = '/home/cytr/PycharmProjects/ElectroQueryVEnv/lab_queue/chat_ids.json'
 
 def load_chat_ids():

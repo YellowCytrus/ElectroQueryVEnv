@@ -2,8 +2,7 @@ from django.urls import path
 from django.contrib.auth import views as auth_views
 from .views import RegisterView, SubjectListView, JoinQueueView, CompleteSubmissionView, home_view, register_view, \
     login_view, logout_view, join_queue, queue_detail, complete_submission, CustomPasswordResetView, \
-    CheckTelegramUsernameView
-
+    CheckTelegramUsernameView, add_subject
 urlpatterns = [
     # API
     path('api/users/register/', RegisterView.as_view(), name='api_register'),
@@ -18,9 +17,11 @@ urlpatterns = [
     path('logout/', logout_view, name='logout'),
     path('join/<int:subject_id>/', join_queue, name='join_queue'),
     path('queue/<int:session_id>/', queue_detail, name='queue_detail'),
+    path('add-subject/', add_subject, name='add_subject'),
     path('complete/<int:entry_id>/', complete_submission, name='complete_submission'),
 
-    # Маршруты для сброса пароля
+
+    # Сброс пароля
     path('password_reset/', CustomPasswordResetView.as_view(), name='password_reset'),
 
     path('password_reset/done/', auth_views.PasswordResetDoneView.as_view(
@@ -35,3 +36,4 @@ urlpatterns = [
         template_name='queue_site/password_reset_complete.html'
     ), name='password_reset_complete'),
 ]
+

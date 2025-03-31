@@ -1,0 +1,104 @@
+{% extends 'queue_site/base.html' %}
+
+{% block title %}Управление предметами - Электронная очередь{% endblock %}
+
+{% block content %}
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-4">
+                        <h2 class="text-center mb-4">Управление предметами</h2>
+
+                        <div class="row">
+                            <!-- Левая панель: Текущие предметы -->
+                            <div class="col-md-6 mb-4">
+                                <h5 class="mb-3">Ваши предметы:</h5>
+                                {% if current_subjects %}
+                                    <div class="d-flex flex-wrap gap-2 mb-4" style="max-height: 400px; overflow-y: auto;">
+                                        {% for subject in current_subjects %}
+                                            <div class="d-flex align-items-center bg-light p-2 rounded">
+                                                <span class="me-2">{{ subject.name }}</span>
+                                                <form method="post" class="d-inline">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="subject_id" value="{{ subject.id }}">
+                                                    <button type="submit" name="remove_subject" class="btn btn-sm btn-outline-danger">Удалить</button>
+                                                </form>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">У вас пока нет добавленных предметов.</p>
+                                {% endif %}
+                            </div>
+
+                            <!-- Правая панель: Добавление новых предметов -->
+                            <div class="col-md-6 mb-4">
+                                <h5 class="mb-3">Добавить новые предметы:</h5>
+                                <form method="post" id="add-subjects-form">
+                                    {% csrf_token %}
+                                    <div class="mb-3">
+                                        <label for="subject-search" class="form-label">Поиск предметов:</label>
+                                        <input type="text" id="subject-search" class="form-control" placeholder="Введите название предмета">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Доступные предметы:</label>
+                                        <div class="d-flex flex-wrap gap-2" id="subjects-list" style="max-height: 400px; overflow-y: auto;">
+                                            {% if available_subjects %}
+                                                {% for subject in available_subjects %}
+                                                    <div class="form-check subject-item">
+                                                        <input type="checkbox" class="form-check-input" name="subjects" value="{{ subject.id }}" id="subject-{{ subject.id }}">
+                                                        <label class="form-check-label" for="subject-{{ subject.id }}">{{ subject.name }}</label>
+                                                    </div>
+                                                {% endfor %}
+                                            {% else %}
+                                                <p class="text-muted">Все доступные предметы уже добавлены.</p>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="d-grid">
+                                        <button type="submit" name="add_subjects" class="btn btn-primary btn-lg" {% if not available_subjects %}disabled{% endif %}>Добавить</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div class="text-center mt-3">
+                            <a href="{% url 'home' %}" class="text-muted small">Вернуться на главную</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript для поиска -->
+    <script>
+        document.getElementById('subject-search').addEventListener('input', function(e) {
+            const searchText = e.target.value.toLowerCase();
+            const subjects = document.querySelectorAll('.subject-item');
+
+            subjects.forEach(subject => {
+                const subjectName = subject.querySelector('label').textContent.toLowerCase();
+                if (subjectName.includes(searchText)) {
+                    subject.style.display = 'block';
+                } else {
+                    subject.style.display = 'none';
+                }
+            });
+        });
+    </script>
+
+    <!-- Стили для улучшения отображения -->
+    <style>
+        .subject-item {
+            margin-right: 15px;
+        }
+        .d-flex.flex-wrap {
+            gap: 10px;
+        }
+        .bg-light.p-2 {
+            border: 1px solid #dee2e6;
+        }
+    </style>
+{% endblock %}

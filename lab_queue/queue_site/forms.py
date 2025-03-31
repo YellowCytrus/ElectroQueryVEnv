@@ -1,5 +1,3 @@
-# queue_site/forms.py
-
 from django import forms
 from django.contrib.auth.forms import UserCreationForm, PasswordResetForm
 from django.utils.http import urlsafe_base64_encode
@@ -21,7 +19,7 @@ class CustomUserCreationForm(UserCreationForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.registration_token = RegistrationToken.objects.create()
-        print(f"Created RegistrationToken: {self.registration_token.token}")  # Отладка
+        print(f"Created RegistrationToken: {self.registration_token.token}")  
 
     def clean_telegram_username(self):
         telegram_username = self.cleaned_data.get('telegram_username')
