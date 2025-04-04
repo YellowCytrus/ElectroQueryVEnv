@@ -1,4 +1,6 @@
 import asyncio
+import os
+
 from django.urls import reverse, reverse_lazy
 from django.contrib.auth.views import PasswordResetView
 from telegram import Bot
@@ -15,8 +17,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.views.generic import CreateView, View
-from .forms import CustomUserCreationForm, CustomPasswordResetForm
-from .models import User, Subject, LabSession, QueueEntry, Schedule, UserSubject, RegistrationToken
+from .forms import CustomUserCreationForm, CustomPasswordResetForm, UserAvatarForm
+from .models import User, Subject, LabSession, QueueEntry, Schedule, UserSubject, RegistrationToken, UserLabProgress, \
+    SubjectLabWork
 from .serializers import UserSerializer, SubjectSerializer, LabSessionSerializer, QueueEntrySerializer
 from django.utils import timezone
 
@@ -511,3 +514,84 @@ class JoinQueueView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except (LabSession.DoesNotExist, User.DoesNotExist):
             return Response({"error": "Session or student not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+from django.conf import settings
+
+@login_required
+def profile_view(request):
+    user = request.user
+
+    if request.method == 'POST':
+        form = UserAvatarForm(request.POST, request.FILES)
+        if form.is_valid():
+            if request.FILES.get('avatar'):
+                # Если пользователь загрузил свою аватарку
+                avatar_file = request.FILES['avatar']
+                # Формируем путь для сохранения
+                filename = f"avatars/{user.username}_{avatar_file.name}"
+                filepath = os.path.join(settings.MEDIA_ROOT, filename)
+                # Убедимся, что директория существует
+                os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                # Сохраняем файл
+                try:
+                    with open(filepath, 'wb+') as destination:
+                        for chunk in avatar_file.chunks():
+                            destination.write(chunk)
+                    # Обновляем поле avatar
+                    user.avatar = filename
+                except Exception as e:
+                    return JsonResponse({'success': False, 'error': str(e)})
+            else:
+                # Если пользователь выбрал дефолтную аватарку
+                user.avatar = form.cleaned_data['default_avatar']
+            user.save()
+            return JsonResponse({'success': True, 'avatar_url': user.get_avatar_url()})
+        else:
+            return JsonResponse({'success': False, 'error': 'Форма недействительна'})
+    else:
+        form = UserAvatarForm(initial={'default_avatar': user.avatar})
+
+    # Получаем предметы пользователя через UserSubject
+    subjects = Subject.objects.filter(users__user=user)
+
+    # Получаем прогресс пользователя по лабораторным работам
+    lab_progress = UserLabProgress.objects.filter(user=user).select_related('lab_work')
+
+    # Группируем прогресс по предметам
+    progress_by_subject = {}
+    for subject in subjects:
+        subject_lab_works = SubjectLabWork.objects.filter(subject=subject).values_list('lab_work_id', flat=True)
+        progress = lab_progress.filter(lab_work_id__in=subject_lab_works)
+        progress_by_subject[subject] = progress
+
+    context = {
+        'user': user,
+        'progress_by_subject': progress_by_subject,
+        'form': form,
+    }
+    return render(request, 'queue_site/profile.html', context)
+
+
+
+@login_required
+def toggle_lab_progress(request, progress_id):
+    progress = get_object_or_404(UserLabProgress, id=progress_id, user=request.user)
+    progress.is_completed = not progress.is_completed
+    progress.save()
+    message = f"Статус лабораторной работы '{progress.lab_work.title}' изменён на {'сдана' if progress.is_completed else 'не сдана'}."
+
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({
+            'success': True,
+            'message': message,
+            'is_completed': progress.is_completed,
+        })
+    else:
+        messages.success(request, message)
+        return redirect('profile')
+
+
+@login_required
+def profile_settings(request):
+    return render(request, 'queue_site/profile_settings.html', {})

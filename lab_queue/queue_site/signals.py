@@ -23,7 +23,8 @@ def assign_lab_works_to_user(sender, instance, created, **kwargs):
             )
 
 
-# Инициализация для существующих пользователей (вызывается при старте)
+# Удаляем вызов initialize_user_lab_progress из apps.py
+# Вместо этого создадим команду для инициализации
 def initialize_user_lab_progress():
     # Проходим по всем связям UserSubject
     for user_subject in UserSubject.objects.all():

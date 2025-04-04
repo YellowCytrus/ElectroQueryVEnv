@@ -14,16 +14,22 @@ class User(AbstractUser):
         unique=True,
         help_text="Ваш Telegram username (например, @username). Используется для отправки уведомлений."
     )
-    avatar = models.ImageField(
-        upload_to='avatars/',
+    avatar = models.CharField(
+        max_length=100,
         blank=True,
         null=True,
-        default='avatars/default.jpg',
-        help_text="Аватар пользователя."
+        default='avatars/defaults/avatar1.jpg',
+        help_text="Путь к аватарке пользователя (загруженной или дефолтной)."
     )
 
     def __str__(self):
         return self.username
+
+    def get_avatar_url(self):
+        """Возвращает URL аватарки."""
+        if self.avatar:
+            return f"/media/{self.avatar}"
+        return "/media/avatars/defaults/avatar1.jpg"
 
 
 class RegistrationToken(models.Model):

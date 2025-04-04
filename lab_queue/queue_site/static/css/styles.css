@@ -1,3 +1,26 @@
+/* queue_site/static/css/styles.css */
+
+/* Базовые стили для страницы */
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-color: #fff; /* Белый фон для страницы /profile/ */
+}
+
+.content {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Стили для главной страницы и других страниц */
 .session {
     margin-bottom: 20px;
     padding: 15px;
@@ -14,15 +37,21 @@
 .session li {
     padding: 5px 0;
 }
-body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    padding: 20px;
-    background-color: #f4f4f4;
+header {
+    text-align: center;
+    margin-bottom: 20px;
 }
-header { text-align: center; margin-bottom: 20px; }
-main { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-button, .subject-btn, .session-btn {
+main {
+    max-width: 800px;
+    margin: 0 auto;
+    background: white;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+button,
+.subject-btn,
+.session-btn {
     padding: 10px 20px;
     border: none;
     border-radius: 5px;
@@ -31,19 +60,137 @@ button, .subject-btn, .session-btn {
     display: inline-block;
     margin: 5px;
 }
-.subject-btn { background-color: #007bff; color: white; }
-.subject-btn:hover { background-color: #0056b3; }
-.session-btn.grey { background-color: #ccc; color: black; }
-.session-btn.yellow { background-color: #ffeb3b; color: black; }
-.session-btn.red { background-color: #f44336; color: white; }
-.queue-list { list-style-type: none; padding: 0; }
-.queue-list li { padding: 10px; margin: 5px 0; border-radius: 5px; }
-.queue-list li.grey { background-color: #ddd; }
-.queue-list li.green { background-color: #4caf50; color: white; }
-.queue-list li.yellow { background-color: #ffeb3b; }
-.message { padding: 10px; margin: 10px 0; border-radius: 5px; }
-.message.success { background-color: #d4edda; color: #155724; }
-.message.error { background-color: #f8d7da; color: #721c24; }
+.subject-btn {
+    background-color: #007bff;
+    color: white;
+}
+.subject-btn:hover {
+    background-color: #0056b3;
+}
+.session-btn.grey {
+    background-color: #ccc;
+    color: black;
+}
+.session-btn.yellow {
+    background-color: #ffeb3b;
+    color: black;
+}
+.session-btn.red {
+    background-color: #f44336;
+    color: white;
+}
+.queue-list {
+    list-style-type: none;
+    padding: 0;
+}
+.queue-list li {
+    padding: 10px;
+    margin: 5px 0;
+    border-radius: 5px;
+}
+.queue-list li.grey {
+    background-color: #ddd;
+}
+.queue-list li.green {
+    background-color: #4caf50;
+    color: white;
+}
+.queue-list li.yellow {
+    background-color: #ffeb3b;
+}
+.message {
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 5px;
+}
+.message.success {
+    background-color: #d4edda;
+    color: #155724;
+}
+.message.error {
+    background-color: #f8d7da;
+    color: #721c24;
+}
 button:hover {
     background-color: #0056b3;
+}
+
+/* Кастомные стили для страницы /profile/ */
+#avatar-preview {
+    transition: opacity 0.3s ease;
+}
+
+.card.shadow-sm {
+    border-radius: 8px;
+    transition: box-shadow 0.3s ease;
+}
+
+.card.shadow-sm:hover {
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Убираем hover-эффект для кнопок "Сдал"/"Не сдал" */
+button.toggle-lab-btn.btn-success:hover,
+button.toggle-lab-btn.btn-outline-danger:hover {
+    background-color: inherit !important;
+    color: inherit !important;
+    border-color: inherit !important;
+    box-shadow: none !important;
+}
+
+/* Hover для кнопки "Добавить предмет" */
+a.btn-outline-primary:hover {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+/* Hover для иконки настроек */
+a.text-muted:hover {
+    color: #6c757d;
+    text-decoration: none;
+}
+
+/* Hover для аватарки */
+#avatar-preview:hover {
+    opacity: 0.9;
+}
+
+/* Кастомный hover для аккордеона (предметов) */
+.accordion-button:hover {
+    background-color: #e7f1ff !important; /* Светло-голубой цвет */
+    color: #0d6efd !important; /* Цвет текста (синий) */
+}
+
+/* Стили для toast-уведомлений в стиле Telegram */
+.toast-container {
+    z-index: 1055; /* Убедимся, что уведомление поверх других элементов */
+}
+
+.toast {
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    background-color: #fff;
+    border: none;
+    min-width: 250px;
+}
+
+.toast-header {
+    background-color: #f1f3f5; /* Светлый фон, как в Telegram */
+    border-bottom: 1px solid #dee2e6;
+    font-size: 0.9rem;
+    color: #212529;
+}
+
+.toast-body {
+    font-size: 0.95rem;
+    color: #333;
+}
+
+.toast-success .toast-header {
+    background-color: #e6f4ea; /* Зелёный фон для успешных уведомлений */
+}
+
+.toast-error .toast-header {
+    background-color: #f8d7da; /* Красный фон для ошибок */
 }

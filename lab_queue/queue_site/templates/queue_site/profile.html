@@ -1,0 +1,121 @@
+{% extends 'queue_site/base.html' %}
+{% load static %}
+
+{% block title %}Профиль - Электронная очередь{% endblock %}
+
+{% block content %}
+    <div class="container-fluid flex-grow-1">
+        <div class="row h-100">
+            <!-- Боковая панель -->
+            <div class="col-md-3 h-100">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body text-center p-4 d-flex flex-column">
+                        <!-- Аватарка (кликабельная) -->
+                        <div class="position-relative">
+                            <img id="avatar-preview" src="{{ user.get_avatar_url }}" alt="Аватар" class="rounded-circle mb-3 mx-auto" style="width: 150px; height: 150px; object-fit: cover; cursor: pointer;" onerror="this.src='/media/avatars/defaults/avatar1.jpg';">
+                            <input type="file" id="avatar-input" name="avatar" accept="image/*" style="display: none;">
+                        </div>
+                        <!-- Ник -->
+                        <h5 class="mb-1">{{ user.username }}</h5>
+                        <!-- Telegram username -->
+                        <p class="text-muted mb-4">{{ user.telegram_username }}</p>
+
+                        <!-- Форма для выбора дефолтной аватарки -->
+                        <form id="avatar-form" method="post" action="{% url 'profile' %}" enctype="multipart/form-data" class="mb-3">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="default_avatar" class="form-label">Можете установить одну из дефолтных аватарок</label>
+                                <select id="default-avatar-select" name="default_avatar" class="form-select">
+                                    <option value="avatars/defaults/avatar1.jpg" {% if user.avatar == 'avatars/defaults/avatar1.jpg' %}selected{% endif %}>Аватар 1</option>
+                                    <option value="avatars/defaults/avatar2.jpg" {% if user.avatar == 'avatars/defaults/avatar2.jpg' %}selected{% endif %}>Аватар 2</option>
+                                    <option value="avatars/defaults/avatar3.jpg" {% if user.avatar == 'avatars/defaults/avatar3.jpg' %}selected{% endif %}>Аватар 3</option>
+                                </select>
+                            </div>
+                            <div class="d-grid">
+                                <button type="button" id="save-avatar-btn" class="btn btn-primary" style="display: none;">Сохранить изменения</button>
+                            </div>
+                        </form>
+
+                        <!-- Кнопка "Настройки" -->
+                        <div class="mt-auto">
+                            <a href="{% url 'profile_settings' %}" class="text-muted" title="Настройки">
+                                <i class="bi bi-gear-fill" style="font-size: 1.5rem;"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Основная часть -->
+            <div class="col-md-9 h-100">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h3>Ваши предметы и прогресс</h3>
+                            <!-- Кнопка "Добавить предмет" -->
+                            <a href="{% url 'add_subject' %}" class="btn btn-outline-primary">Добавить предмет</a>
+                        </div>
+
+                        {% if progress_by_subject %}
+                            {% for subject, progress in progress_by_subject.items %}
+                                <div class="mb-4">
+                                    <h4>{{ subject.name }}</h4>
+                                    <div class="accordion" id="accordion-{{ subject.id }}">
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header" id="heading-{{ subject.id }}">
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ subject.id }}" aria-expanded="false" aria-controls="collapse-{{ subject.id }}">
+                                                    Лабораторные работы ({{ progress|length }})
+                                                </button>
+                                            </h2>
+                                            <div id="collapse-{{ subject.id }}" class="accordion-collapse collapse" aria-labelledby="heading-{{ subject.id }}" data-bs-parent="#accordion-{{ subject.id }}">
+                                                <div class="accordion-body">
+                                                    {% for entry in progress %}
+                                                        <div class="card mb-2 {% if entry.is_completed %}bg-light{% endif %}" id="lab-{{ entry.id }}">
+                                                            <div class="card-body d-flex justify-content-between align-items-center">
+                                                                <span class="{% if entry.is_completed %}text-muted{% endif %}">
+                                                                    {{ entry.lab_work.number }}: {{ entry.lab_work.title }}
+                                                                </span>
+                                                                <button class="btn btn-sm toggle-lab-btn {% if entry.is_completed %}btn-outline-danger{% else %}btn-success{% endif %}" data-id="{{ entry.id }}" data-url="{% url 'toggle_lab_progress' entry.id %}">
+                                                                    {% if entry.is_completed %}Не сдал{% else %}Сдал{% endif %}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted text-center">Вы ещё не добавили предметы. <a href="{% url 'add_subject' %}">Добавить предметы</a>.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для подтверждения изменений -->
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmModalLabel">Сохранить изменения?</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Вы изменили аватарку, но не сохранили изменения. Хотите сохранить их перед выходом?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="discard-changes-btn" data-bs-dismiss="modal">Отменить изменения</button>
+                    <button type="button" class="btn btn-primary" id="save-changes-btn">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="{% static 'js/profile.js' %}"></script>
+{% endblock %}

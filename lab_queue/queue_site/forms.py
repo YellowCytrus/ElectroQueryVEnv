@@ -50,3 +50,20 @@ class CustomPasswordResetForm(PasswordResetForm):
         self.uid = urlsafe_base64_encode(force_bytes(user.pk))
         self.token = token_generator.make_token(user)
         return user
+
+
+class UserAvatarForm(forms.Form):
+    avatar = forms.ImageField(
+        label="Загрузить свою аватарку",
+        required=False,
+        widget=forms.ClearableFileInput(attrs={'class': 'form-control'})
+    )
+    default_avatar = forms.ChoiceField(
+        label="Или выберите дефолтную аватарку",
+        choices=[
+            ('avatars/defaults/avatar1.jpg', 'Аватар 1'),
+            ('avatars/defaults/avatar2.jpg', 'Аватар 2'),
+            # ('avatars/defaults/avatar3.jpg', 'Аватар 3'),
+        ],
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )

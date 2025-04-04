@@ -1,0 +1,21 @@
+{% extends 'queue_site/base.html' %}
+
+{% block title %}Настройки профиля - Электронная очередь{% endblock %}
+
+{% block content %}
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-4">
+                        <h2 class="text-center mb-4">Настройки профиля</h2>
+                        <p class="text-muted text-center">Страница настроек в разработке.</p>
+                        <div class="text-center">
+                            <a href="{% url 'profile' %}" class="btn btn-outline-primary">Вернуться в профиль</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
